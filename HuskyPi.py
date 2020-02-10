@@ -67,7 +67,7 @@ class HLProtocolError(HLError):
 class HuskyLens(object):
     ''' library for huskylens vission processor'''
     PREFIX=[0x55,0xaa,0x11]
-    def __init__(self,mode=SERIAL,baud=9600,device=0x32,bus=1):
+    def __init__(self,mode=SERIAL,baud=9600,device=0x32,bus=1,debug=False):
         '''initialise huskylens
             mode SERIAL/I2C
             options
@@ -77,6 +77,7 @@ class HuskyLens(object):
             defaults 9600 baud bus 1 addr 32
             '''
         self.mode=mode
+        self.debug=debug
         if mode:    #serial initialisation 
             self.port = serial.Serial("/dev/ttyS0", baudrate=baud, timeout=3.0)
             
@@ -95,10 +96,11 @@ class HuskyLens(object):
         if self.mode:
             pass
             self.port.write(data)
-            print('msg-sent:%s',data)
         else:
-            return self.fw.write(bytes(data))
-
+            self.fw.write(bytes(data))
+        print('msg-sent:%s',data)
+        return
+        
     def read(self,length,timeout=.1):
         '''read lenth bytes from husklens
         timeout on serial port raises HLTimeoutError'''
@@ -123,9 +125,21 @@ class HuskyLens(object):
         '''get full response packet from huskylens
         if data does not conform raise readError'''
         packet=self.read(length)
-        cmd=packet[5]
-        data=packet[
-        return cmd,data
+        self.dump(packet)
+        cmd=packet[4]
+        data=[]
+        count=0
+        if cmd==0x2e:
+            return packet
+        if cmd==0x29:
+            count=packet[5]
+        if count >0:
+            print ("More Data Expected")
+            for x in range(count):
+                packet=self.read(length)
+                self.dump(packet)
+                data.append(packet)
+        return data
             
     def command(self,cmd,data=None):
         '''create Huskylens command message'''
@@ -142,22 +156,10 @@ class HuskyLens(object):
         msg +=[chksum & 255]
         return msg
         
-    def execute(self):
-        self.write(self.command(COMMAND_REQUEST)) #request data from husky
-        cmd,data=self.read_response()
-        if cmd !=COMMAND_RETURN_INFO:
-            print (cmd,data)
-            raise HLError('Expected Command Info Packet')
-        packets=data[0]+data[1]*256    #Number of blocks & arrows
-        ids=data[2]+data[3]*256  #number of IDs
-        print("Packets=%s,id's=%s"%(packets,ids))
-        response=[]
-        while packets >0:
-            self.write(self.command(COMMAND_REQUEST))
-            #time.sleep(.1)
-            response.append(self.read_response())
-            packets -=1
-        return response
+    def execute(self,algorithm):
+        self.write(self.command(COMMAND_REQUEST))
+        return self.read_response()
+        return data
         
     def close(self):
         '''Close husky lens connection'''
@@ -168,24 +170,25 @@ class HuskyLens(object):
 #close I2C
             self.fw.close()
             self.fr.close()
+    def dump(self,packet):
+        if self.debug:
+            print ("Packet :",end='')
+            for x in packet:
+                print(hex(x),end=":")
+            print()
+        
 
 def main(args):
-    hl=HuskyLens(mode=SERIAL)
-    for x in range (2):
-        while True:
+    hl=HuskyLens(mode=I2C,debug=False)
+    for x in range (10):
+ #       while True:
             print('Read line tracking')
             try:
-                response=hl.execute()
-                for cmd,data in response:
-                    print('command:%s Data :'%hex(ord(cmd)),end=" ")
-                    for byte in data:
-                        print(hex(byte),end=':')
-                    print()
-                    break
+                response=hl.execute(ALGORITHM_LINE_TRACK)
+                print(response)
             except HLError:
-                print('ok try again')
-    return 0
-
+                print("Something Fucked")
+            time.sleep(0.5)
     return 0
 
 if __name__ == '__main__':
