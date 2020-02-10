@@ -119,24 +119,12 @@ class HuskyLens(object):
             result = self.fr.read(length)
         return result
 
-    def read_response(self):
+    def read_response(self,length=16):
         '''get full response packet from huskylens
         if data does not conform raise readError'''
-        for x in range(3):
-            char=self.read(1)
-
-            if ord(char)!= self.PREFIX[x]:
-                raise HLProtocolError(x)
-                
-        length=ord(self.read(1))
-        cmd=self.read(1)
-        if length>0:
-            data=self.read(length)
-        else:
-            data=None
-            
-        csum=self.read(1)
-##  Checksum check should go here!
+        packet=self.read(length)
+        cmd=packet[5]
+        data=packet[
         return cmd,data
             
     def command(self,cmd,data=None):
