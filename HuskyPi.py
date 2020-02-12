@@ -69,7 +69,7 @@ class HLProtocolError(HLError):
 class HuskyLens(object):
     ''' library for huskylens vission processor'''
     PREFIX=[0x55,0xaa,0x11]
-    def __init__(self,mode=SERIAL,baud=9600,device=0x32,bus=1,debug=False):
+    def __init__(self,mode=SERIAL,port='/dev/ttyS0',baud=9600,device=0x32,bus=1,debug=False):
         '''initialise huskylens
             mode SERIAL/I2C
             options
@@ -81,7 +81,7 @@ class HuskyLens(object):
         self.mode=mode
         self.debug=debug
         if mode:    #serial initialisation 
-            self.port = serial.Serial("/dev/ttyS0", baudrate=baud, timeout=3.0)
+            self.port = serial.Serial(port, baudrate=baud, timeout=3.0)
             
         else:   #I2C initialisation
             
