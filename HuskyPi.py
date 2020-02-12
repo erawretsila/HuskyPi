@@ -39,12 +39,12 @@ COMMAND_REQUEST_ARROWS_LEARNED=0x25
 COMMAND_REQUEST_BY_ID=0x26
 COMMAND_REQUEST_BLOCKS_BY_ID=0x27
 COMMAND_REQUEST_ARROWS_BY_ID=0x28
-COMMAND_RETURN_INFO=b'\x29'
-COMMAND_RETURN_BLOCK=b'\x2a'
-COMMAND_RETURN_ARROW=b'\x2b'
+COMMAND_RETURN_INFO=0x29
+COMMAND_RETURN_BLOCK=0x2a
+COMMAND_RETURN_ARROW=0x2b
 COMMAND_REQUEST_KNOCK=0x2c
 COMMAND_REQUEST_ALGORITHM=0x2d
-COMMAND_RETURN_OK=b'\x2e'
+COMMAND_RETURN_OK=0x2e
 
 ALGORITHM_FACE_REC=[0x00,0x00]
 ALGORITHM_OBJECT_TRACK=[0x01,0x00]
@@ -100,7 +100,7 @@ class HuskyLens(object):
             self.port.write(data)
         else:
             self.fw.write(bytes(data))
-        print('msg-sent:%s',data)
+        self.dump(data)
         return
         
     def read(self,length,timeout=.1):
@@ -134,12 +134,11 @@ class HuskyLens(object):
         cmd=packet[4]
         data=[]
         count=0
-        if cmd==0x2e:
+        if cmd==COMMAND_RETURN_OK:
             return packet
-        if cmd==0x29:
+        if cmd==COMMAND_RETURN_INFO:
             count=packet[5]
         if count >0:
-            print ("More Data Expected")
             for x in range(count):
                 packet=self.read(length)
                 self.dump(packet)
@@ -160,11 +159,38 @@ class HuskyLens(object):
             chksum+=x
         msg +=[chksum & 255]
         return msg
+
+    def knock(self):
+        '''check for active huskylens'''
+        self.write(self.command(COMMAND_REQUEST_KNOCK))
+        response=self.read(6)
+        if response != bytes(self.PREFIX+[00,COMMAND_RETURN_OK,0x3e]):
+            raise HLProtocolError(response)
         
-    def execute(self,algorithm):
+    def set_mode(self,algorithm):
+        '''Set huskylens detaction mode
+        raise HLProtocolError if fails'''
+        self.write(self.command(COMMAND_REQUEST_ALGORITHM,algorithm))
+        response=self.read_response(6)
+        if response != bytes(self.PREFIX+[00,COMMAND_RETURN_OK,0x3e]):
+            raise HLProtocolError(response)
+        
+    def execute(self, format=False):
+        '''reqests data for husky lens
+        returns a list of 0 or more detected items in the format
+        type,(start/center co-ordinates),(end/Height + width)
+        type is ether 0x2a for block (center & height + width)
+        or  ox2b for Line (start coords, end coords)
+        '''
         self.write(self.command(COMMAND_REQUEST))
-        return self.read_response()
-        return data
+        response= self.read_response()
+        if format:
+            
+            for i,data in enumerate(response):
+                start=(data[5]+data[6]*256,data[7]+data[8]*256)
+                end=(data[9]+data[10]*256,data[11]+data[12]*256)
+                response[i]=[data[4],start,end]
+        return response
         
     def close(self):
         '''Close husky lens connection'''
@@ -187,10 +213,13 @@ class HuskyLens(object):
 
 def main(args):
     hl=HuskyLens(mode=I2C,debug=False)
+    hl.knock()
+    hl.set_mode(ALGORITHM_LINE_TRACK)
+    time.sleep(.2)
     for x in range (10):
         print('Read line tracking')
         try:
-            response=hl.execute(ALGORITHM_LINE_TRACK)
+            response=hl.execute(format=True)
             print(response)
         except HLError:
             print("Something Fucked")
