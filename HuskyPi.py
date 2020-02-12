@@ -27,7 +27,9 @@ import fcntl
 import serial
 import time
 
-I2C_SLAVE=0x0703 #not sure what this is
+VERSION=0.5
+
+I2C_SLAVE=0x0703 #I2C interface ID/location?
 
 COMMAND_REQUEST=0x20
 COMMAND_REQUEST_BLOCKS=0x21
@@ -103,22 +105,25 @@ class HuskyLens(object):
         
     def read(self,length,timeout=.1):
         '''read lenth bytes from husklens
-        timeout on serial port raises HLTimeoutError'''
+        timeout on serial port raises HLTimeoutError
+        Failure to confirm to HuskyLens protocol raises 
+        HLProtocolError'''
         if self.mode:
-            result=''
-            timeout=time.time()
-            while result== '':
-                data=self.port.read(length)
-                if data !="":
-                    result=data
-                    break
-                if time.time()-timeout >timeout:
-                    raise HLTimeoutError('Timeout')
-                    break
-                    
-                
+            result=self.port.read(length)
+            if len(result)< length:
+                raise HLTimeoutError
         else:
             result = self.fr.read(length)
+        #check mesg prefix
+        for i,byte in enumerate(self.PREFIX):
+            if byte !=result[i]:
+                raise HLProtocolError(result)
+        #check checksum :-)
+        csum=0
+        for x in result[:-1]:
+            csum+=x
+        if csum&255!=result[-1]:
+            raise HLProtocolError(result)
         return result
 
     def read_response(self,length=16):
@@ -170,7 +175,9 @@ class HuskyLens(object):
 #close I2C
             self.fw.close()
             self.fr.close()
+
     def dump(self,packet):
+        '''print a hex dump of 'packet'''
         if self.debug:
             print ("Packet :",end='')
             for x in packet:
@@ -181,14 +188,13 @@ class HuskyLens(object):
 def main(args):
     hl=HuskyLens(mode=I2C,debug=False)
     for x in range (10):
- #       while True:
-            print('Read line tracking')
-            try:
-                response=hl.execute(ALGORITHM_LINE_TRACK)
-                print(response)
-            except HLError:
-                print("Something Fucked")
-            time.sleep(0.5)
+        print('Read line tracking')
+        try:
+            response=hl.execute(ALGORITHM_LINE_TRACK)
+            print(response)
+        except HLError:
+            print("Something Fucked")
+        time.sleep(0.5)
     return 0
 
 if __name__ == '__main__':
