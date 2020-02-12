@@ -175,7 +175,7 @@ class HuskyLens(object):
         if response != bytes(self.PREFIX+[00,COMMAND_RETURN_OK,0x3e]):
             raise HLProtocolError(response)
         
-    def execute(self, format=False):
+    def execute(self, decode=False):
         '''reqests data for husky lens
         returns a list of 0 or more detected items in the format
         type,(start/center co-ordinates),(end/Height + width)
