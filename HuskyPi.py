@@ -166,6 +166,8 @@ class HuskyLens(object):
         response=self.read(6)
         if response != bytes(self.PREFIX+[00,COMMAND_RETURN_OK,0x3e]):
             raise HLProtocolError(response)
+        else:
+            return True
         
     def set_mode(self,algorithm):
         '''Set huskylens detaction mode
